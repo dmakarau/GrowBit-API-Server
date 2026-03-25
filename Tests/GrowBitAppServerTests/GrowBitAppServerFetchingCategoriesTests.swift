@@ -141,6 +141,20 @@ struct GrowBitAppServerFetchingCategoriesTests {
         }
     }
 
+    @Test("Fetch all categories - Fail - Cross-user access returns 403")
+    func fetchCategoriesCrossUserForbidden() async throws {
+        try await withApp(configure: configure) { app in
+            let (tokenA, _)  = try await registerAndLogin(in: app, username: "crossuser_a")
+            let (_, userBId) = try await registerAndLogin(in: app, username: "crossuser_b")
+
+            try await app.testing().test(.GET, "/api/\(userBId.uuidString)/categories") { req in
+                req.headers.bearerAuthorization = BearerAuthorization(token: tokenA)
+            } afterResponse: { res in
+                #expect(res.status == .forbidden)
+            }
+        }
+    }
+
     @Test("Fetch all categories - Verify color normalization persistence")
     func fetchAllCategoriesColorNormalization() async throws {
         try await withApp(configure: configure) { app in

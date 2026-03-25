@@ -5,7 +5,6 @@
 
 import Foundation
 import Fluent
-import Vapor
 
 final class RefreshToken: Model, @unchecked Sendable {
     static let schema = "refresh_tokens"

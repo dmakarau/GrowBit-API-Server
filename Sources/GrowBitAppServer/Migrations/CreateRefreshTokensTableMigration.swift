@@ -3,7 +3,6 @@
 //  GrowBitAppServer
 //
 
-import Foundation
 import Fluent
 
 struct CreateRefreshTokensTableMigration: AsyncMigration {

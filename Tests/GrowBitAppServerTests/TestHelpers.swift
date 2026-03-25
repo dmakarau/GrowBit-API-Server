@@ -20,6 +20,7 @@ func registerAndLogin(in app: Application, username: String, password: String = 
     try await app.testing().test(.POST, "/api/login") { req in
         try req.content.encode(user)
     } afterResponse: { res in
+        #expect(res.status == .ok)
         let response = try res.content.decode(AuthResponseDTO.self)
         token = response.token
         userId = response.userId
