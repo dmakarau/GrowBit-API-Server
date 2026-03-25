@@ -3,9 +3,9 @@
 //  GrowBitAppServer
 //
 
-import CryptoKit
 import Foundation
 import Fluent
+import Vapor
 
 final class RefreshToken: Model, @unchecked Sendable {
     static let schema = "refresh_tokens"
@@ -26,8 +26,7 @@ final class RefreshToken: Model, @unchecked Sendable {
     var rawToken: String = ""
 
     static func hash(_ raw: String) -> String {
-        let digest = SHA256.hash(data: Data(raw.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
+        SHA256.hash(data: Data(raw.utf8)).hex
     }
 
     init() {}
