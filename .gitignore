@@ -13,5 +13,3 @@ default.profraw
 .vscode
 Package.resolved
 
-# Development guidance for Claude Code
-CLAUDE.md
