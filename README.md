@@ -28,18 +28,16 @@ A Swift-based REST API server for habit tracking, built with the Vapor web frame
 
 #### Authentication
 - `POST /api/register` - User registration ✅
-- `POST /api/login` - User login ✅
+- `POST /api/login` - Returns access token (15 min) and refresh token (7 days) ✅
+- `POST /api/refresh` - Issue new access token from a valid refresh token ✅
+- `POST /api/logout` - Revoke refresh token ✅
 
-#### Categories
+#### Categories (JWT protected)
 - `POST /api/:userId/categories` - Create new category ✅
 - `GET /api/:userId/categories` - Get all categories for user ✅
 - `DELETE /api/:userId/categories/:categoryId` - Delete category ✅
 
 ### Planned Endpoints
-
-#### Authentication
-- `POST /api/refresh` - Refresh JWT token
-- `POST /api/logout` - User logout
 
 #### Categories
 - `PUT /api/:userId/categories/:id` - Update category
@@ -200,19 +198,15 @@ This project serves as a learning experience for backend development with Vapor.
 - ✅ User ownership verification for category operations
 - ✅ Swift 6.2 concurrency support (@Sendable)
 - ✅ Shared DTO package integration with @retroactive conformance
-- ✅ Test suite for authentication endpoints
-- ✅ Test suite for category operations (create, fetch, delete)
-- ✅ Comprehensive error handling with proper HTTP status codes
-
-### In Progress
-- 🔄 User logout endpoint
-- 🔄 Protected routes with JWT middleware
+- ✅ JWT refresh token with DB-backed revocation
+- ✅ Logout endpoint (revokes refresh token, idempotent)
+- ✅ Protected category routes via JWT middleware (cross-user access blocked)
+- ✅ Test suite for all endpoints including refresh and logout
 
 ### Planned Features
-- 📋 Category UPDATE operation
-- 📋 Habits CRUD operations
-- 📋 Habit entries and calendar functionality
-- 📋 JWT token refresh endpoint
+- Category UPDATE operation
+- Habits CRUD operations
+- Habit entries and calendar functionality
 
 ## Contributing
 
