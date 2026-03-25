@@ -3,6 +3,7 @@
 //  GrowBitAppServer
 //
 
+import Foundation
 @testable import GrowBitAppServer
 import VaporTesting
 import Testing

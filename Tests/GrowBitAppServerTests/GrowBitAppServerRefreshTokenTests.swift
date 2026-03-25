@@ -47,22 +47,33 @@ struct GrowBitAppServerRefreshTokenTests {
         }
     }
 
-    @Test("Refresh success - returns new access token")
+    @Test("Refresh success - returns new access and refresh tokens, old refresh token is revoked")
     func refreshSuccess() async throws {
         try await withApp(configure: configure) { app in
             let (originalToken, refreshToken, _) = try await createAndLoginUser(in: app)
 
             var newAccessToken = ""
+            var newRefreshToken = ""
             try await app.testing().test(.POST, "/api/refresh") { req in
                 try req.content.encode(["refreshToken": refreshToken])
             } afterResponse: { res in
                 #expect(res.status == .ok)
                 let response = try res.content.decode(RefreshResponseDTO.self)
                 #expect(!response.token.isEmpty)
+                #expect(!response.refreshToken.isEmpty)
                 newAccessToken = response.token
+                newRefreshToken = response.refreshToken
             }
 
             #expect(newAccessToken != originalToken)
+            #expect(newRefreshToken != refreshToken)
+
+            // Old refresh token must be revoked after rotation
+            try await app.testing().test(.POST, "/api/refresh") { req in
+                try req.content.encode(["refreshToken": refreshToken])
+            } afterResponse: { res in
+                #expect(res.status == .unauthorized)
+            }
         }
     }
 
@@ -91,7 +102,7 @@ struct GrowBitAppServerRefreshTokenTests {
             try await expiredToken.save(on: app.db)
 
             try await app.testing().test(.POST, "/api/refresh") { req in
-                try req.content.encode(["refreshToken": expiredToken.token])
+                try req.content.encode(["refreshToken": expiredToken.rawToken])
             } afterResponse: { res in
                 #expect(res.status == .unauthorized)
                 #expect(res.body.string.contains("expired"))

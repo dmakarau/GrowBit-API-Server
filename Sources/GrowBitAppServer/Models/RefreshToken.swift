@@ -3,6 +3,7 @@
 //  GrowBitAppServer
 //
 
+import CryptoKit
 import Foundation
 import Fluent
 
@@ -21,11 +22,21 @@ final class RefreshToken: Model, @unchecked Sendable {
     @Field(key: "expires_at")
     var expiresAt: Date
 
+    // Transient — holds the raw token after creation, never persisted
+    var rawToken: String = ""
+
+    static func hash(_ raw: String) -> String {
+        let digest = SHA256.hash(data: Data(raw.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
     init() {}
 
     init(id: UUID? = nil, userId: UUID, expiresAt: Date) {
+        let raw = UUID().uuidString
         self.id = id
-        self.token = UUID().uuidString
+        self.rawToken = raw
+        self.token = RefreshToken.hash(raw)
         self.$user.id = userId
         self.expiresAt = expiresAt
     }

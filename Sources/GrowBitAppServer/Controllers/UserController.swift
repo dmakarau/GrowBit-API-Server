@@ -36,6 +36,12 @@ struct UserController: RouteCollection {
 
         let userId = try existingUser.requireID()
 
+        // Prune expired tokens for this user before issuing a new one
+        try await RefreshToken.query(on: req.db)
+            .filter(\.$user.$id == userId)
+            .filter(\.$expiresAt < Date())
+            .delete()
+
         let authPayload = AuthPayload(
             expiration: .init(value: Date().addingTimeInterval(TokenExpiry.access)),
             userId: userId
@@ -50,7 +56,7 @@ struct UserController: RouteCollection {
 
         return AuthResponseDTO(
             token: accessToken,
-            refreshToken: refreshToken.token,
+            refreshToken: refreshToken.rawToken,
             userId: userId
         )
     }
@@ -58,8 +64,9 @@ struct UserController: RouteCollection {
     @Sendable func refresh(req: Request) async throws -> RefreshResponseDTO {
         let body = try req.content.decode(RefreshRequest.self)
 
+        let tokenHash = RefreshToken.hash(body.refreshToken)
         guard let storedToken = try await RefreshToken.query(on: req.db)
-            .filter(\.$token == body.refreshToken)
+            .filter(\.$token == tokenHash)
             .first()
         else {
             throw Abort(.unauthorized, reason: "Invalid refresh token")
@@ -70,20 +77,29 @@ struct UserController: RouteCollection {
             throw Abort(.unauthorized, reason: "Refresh token has expired")
         }
 
+        // Rotate: invalidate used token, issue a new one
+        try await storedToken.delete(on: req.db)
+        let newRefreshToken = RefreshToken(
+            userId: storedToken.$user.id,
+            expiresAt: Date().addingTimeInterval(TokenExpiry.refresh)
+        )
+        try await newRefreshToken.save(on: req.db)
+
         let authPayload = AuthPayload(
             expiration: .init(value: Date().addingTimeInterval(TokenExpiry.access)),
             userId: storedToken.$user.id
         )
         let accessToken = try await req.jwt.sign(authPayload)
 
-        return RefreshResponseDTO(token: accessToken)
+        return RefreshResponseDTO(token: accessToken, refreshToken: newRefreshToken.rawToken)
     }
 
     @Sendable func logout(req: Request) async throws -> LogoutResponseDTO {
         let body = try req.content.decode(LogoutRequest.self)
 
+        let tokenHash = RefreshToken.hash(body.refreshToken)
         if let storedToken = try await RefreshToken.query(on: req.db)
-            .filter(\.$token == body.refreshToken)
+            .filter(\.$token == tokenHash)
             .first() {
             try await storedToken.delete(on: req.db)
         }
