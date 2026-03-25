@@ -129,6 +129,22 @@ struct GrowBitAppServerSavingCategoryTests {
         }
     }
 
+    @Test("Category creation - Fail - Cross-user access returns 403")
+    func categoryCreationCrossUserForbidden() async throws {
+        try await withApp(configure: configure) { app in
+            let (tokenA, _)  = try await registerAndLogin(in: app, username: "postxuser_a")
+            let (_, userBId) = try await registerAndLogin(in: app, username: "postxuser_b")
+
+            let requestBody = ["name": "test category", "colorCode": "#FFFFFF"]
+            try await app.testing().test(.POST, "/api/\(userBId.uuidString)/categories") { req in
+                req.headers.bearerAuthorization = BearerAuthorization(token: tokenA)
+                try req.content.encode(requestBody)
+            } afterResponse: { res in
+                #expect(res.status == .forbidden)
+            }
+        }
+    }
+
     @Test("Category creation - Fail - No auth token")
     func categoryCreationFailNoToken() async throws {
         try await withApp(configure: configure) { app in

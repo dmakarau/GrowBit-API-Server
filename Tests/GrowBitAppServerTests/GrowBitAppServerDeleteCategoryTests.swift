@@ -160,6 +160,20 @@ struct GrowBitAppServerDeleteCategoryTests {
         }
     }
 
+    @Test("Delete category - Fail - Cross-user access returns 403")
+    func deleteCategoryCrossUserForbidden() async throws {
+        try await withApp(configure: configure) { app in
+            let (tokenA, _)  = try await registerAndLogin(in: app, username: "delxuser_a")
+            let (_, userBId) = try await registerAndLogin(in: app, username: "delxuser_b")
+
+            try await app.testing().test(.DELETE, "/api/\(userBId.uuidString)/categories/\(UUID().uuidString)") { req in
+                req.headers.bearerAuthorization = BearerAuthorization(token: tokenA)
+            } afterResponse: { res in
+                #expect(res.status == .forbidden)
+            }
+        }
+    }
+
     @Test("Delete category - User isolation test")
     func deleteCategoryUserIsolation() async throws {
         try await withApp(configure: configure) { app in

@@ -65,29 +65,32 @@ struct UserController: RouteCollection {
         let body = try req.content.decode(RefreshRequest.self)
 
         let tokenHash = RefreshToken.hash(body.refreshToken)
-        guard let storedToken = try await RefreshToken.query(on: req.db)
-            .filter(\.$token == tokenHash)
-            .first()
-        else {
-            throw Abort(.unauthorized, reason: "Invalid refresh token")
-        }
 
-        guard storedToken.expiresAt > Date() else {
-            try await storedToken.delete(on: req.db)
-            throw Abort(.unauthorized, reason: "Refresh token has expired")
-        }
+        let (newRefreshToken, userId) = try await req.db.transaction { db in
+            guard let storedToken = try await RefreshToken.query(on: db)
+                .filter(\.$token == tokenHash)
+                .first()
+            else {
+                throw Abort(.unauthorized, reason: "Invalid refresh token")
+            }
 
-        // Rotate: invalidate used token, issue a new one
-        try await storedToken.delete(on: req.db)
-        let newRefreshToken = RefreshToken(
-            userId: storedToken.$user.id,
-            expiresAt: Date().addingTimeInterval(TokenExpiry.refresh)
-        )
-        try await newRefreshToken.save(on: req.db)
+            guard storedToken.expiresAt > Date() else {
+                try await storedToken.delete(on: db)
+                throw Abort(.unauthorized, reason: "Refresh token has expired")
+            }
+
+            try await storedToken.delete(on: db)
+            let newToken = RefreshToken(
+                userId: storedToken.$user.id,
+                expiresAt: Date().addingTimeInterval(TokenExpiry.refresh)
+            )
+            try await newToken.save(on: db)
+            return (newToken, storedToken.$user.id)
+        }
 
         let authPayload = AuthPayload(
             expiration: .init(value: Date().addingTimeInterval(TokenExpiry.access)),
-            userId: storedToken.$user.id
+            userId: userId
         )
         let accessToken = try await req.jwt.sign(authPayload)
 
