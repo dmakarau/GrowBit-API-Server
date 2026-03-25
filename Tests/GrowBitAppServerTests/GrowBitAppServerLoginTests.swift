@@ -37,10 +37,10 @@ struct GrowBitAppServerLoginTests {
             } afterResponse: { res in
                 #expect(res.status == .ok)
 
-                let response = try res.content.decode(LoginResponseDTO.self)
-                #expect(response.error == false)
-                #expect(response.token != nil)
-                #expect(response.reason == nil) // Should be nil on success
+                let response = try res.content.decode(AuthResponseDTO.self)
+                #expect(!response.token.isEmpty)
+                #expect(!response.refreshToken.isEmpty)
+                #expect(response.userId != UUID())
             }
         }
     }
