@@ -10,6 +10,7 @@ import Foundation
 import GrowBitSharedDTO
 import VaporTesting
 import Testing
+import Fluent
 
 @Suite("App Login Tests")
 struct GrowBitAppServerLoginTests {
@@ -27,20 +28,24 @@ struct GrowBitAppServerLoginTests {
     @Test("Test User Login Success")
     func testUserLoginSuccess() async throws {
         try await withApp(configure: configure) { app in
-            // Create user in this app instance
             try await createUser(in: app)
 
-            // Now test login with the same app instance
+            guard let createdUser = try await User.query(on: app.db)
+                .filter(\.$username == "testuser")
+                .first(),
+                  let expectedUserId = createdUser.id else {
+                throw TestError.userCreationFailed
+            }
+
             let loginCredentials = User(username: "testuser", password: "password")
             try await app.testing().test(.POST, "/api/login") { req in
                 try req.content.encode(loginCredentials)
             } afterResponse: { res in
                 #expect(res.status == .ok)
-
-                let response = try res.content.decode(LoginResponseDTO.self)
-                #expect(response.error == false)
-                #expect(response.token != nil)
-                #expect(response.reason == nil) // Should be nil on success
+                let response = try res.content.decode(AuthResponseDTO.self)
+                #expect(!response.token.isEmpty)
+                #expect(!response.refreshToken.isEmpty)
+                #expect(response.userId == expectedUserId)
             }
         }
     }
@@ -56,51 +61,41 @@ struct GrowBitAppServerLoginTests {
             try await app.testing().test(.POST, "/api/login") { req in
                 try req.content.encode(loginCredentials)
             } afterResponse: { res in
-                #expect(res.status == .badRequest)
-                // Check that we get a meaningful error response (not empty)
+                #expect(res.status == .unauthorized)
                 #expect(!res.body.string.isEmpty)
-                #expect(res.body.string.contains("User not found"))
-
+                #expect(res.body.string.contains("Invalid credentials"))
             }
         }
     }
-    
+
     @Test("Test User Login Fail - Wrong password")
     func testUserLoginFailureWrongPassword() async throws {
         try await withApp(configure: configure) { app in
-            // Create user in this app instance
             try await createUser(in: app)
 
-            // Now test login with the same app instance
             let loginCredentials = User(username: "testuser", password: "wrongpassword")
             try await app.testing().test(.POST, "/api/login") { req in
                 try req.content.encode(loginCredentials)
             } afterResponse: { res in
                 #expect(res.status == .unauthorized)
-                // Check that we get a meaningful error response (not empty)
                 #expect(!res.body.string.isEmpty)
-                #expect(res.body.string.contains("Wrong password"))
-
+                #expect(res.body.string.contains("Invalid credentials"))
             }
         }
     }
-    
+
     @Test("Test User Login Fail - Wrong username and wrong password")
     func testUserLoginFailureWrongUsernameAndWrongPassword() async throws {
         try await withApp(configure: configure) { app in
-            // Create user in this app instance
             try await createUser(in: app)
 
-            // Now test login with the same app instance
             let loginCredentials = User(username: "wronguser", password: "wrongpassword")
             try await app.testing().test(.POST, "/api/login") { req in
                 try req.content.encode(loginCredentials)
             } afterResponse: { res in
-                #expect(res.status == .badRequest)
-                // Check that we get a meaningful error response (not empty)
+                #expect(res.status == .unauthorized)
                 #expect(!res.body.string.isEmpty)
-                #expect(res.body.string.contains("User not found"))
-
+                #expect(res.body.string.contains("Invalid credentials"))
             }
         }
     }

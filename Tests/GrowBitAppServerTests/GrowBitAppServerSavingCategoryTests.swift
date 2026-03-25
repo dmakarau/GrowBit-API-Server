@@ -17,31 +17,11 @@ struct GrowBitAppServerSavingCategoryTests {
     @Test("Category creation - Success")
     func categoryCreationSuccess() async throws {
         try await withApp(configure: configure) { app in
-            // First create a user using the same pattern as other tests
-            let userRequestBody = User(username: "testuser", password: "password")
-            try await app.testing().test(.POST, "/api/register") { req in
-                try req.content.encode(userRequestBody)
-            } afterResponse: { res in
-                #expect(res.status == .ok)
-                let response = try res.content.decode(RegisterResponseDTO.self)
-                #expect(response.error == false)
-            }
+            let (token, userId) = try await registerAndLogin(in: app, username: "testuser")
 
-            // Retrieve the created user from the database
-            guard let createdUser = try await User.query(on: app.db)
-                .filter(\.$username == "testuser")
-                .first(),
-                  let userId = createdUser.id else {
-                throw TestError.userCreationFailed
-            }
-
-            // Create a simple request object with just name and colorCode (no id or userId)
-            let requestBody = [
-                "name": "test category",
-                "colorCode": "#FFFFFF"
-            ]
-
+            let requestBody = ["name": "test category", "colorCode": "#FFFFFF"]
             try await app.testing().test(.POST, "/api/\(userId.uuidString)/categories") { req in
+                req.headers.bearerAuthorization = BearerAuthorization(token: token)
                 try req.content.encode(requestBody)
             } afterResponse: { res in
                 #expect(res.status == .ok)
@@ -55,27 +35,11 @@ struct GrowBitAppServerSavingCategoryTests {
     @Test("Category creation - Fail - Missing name")
     func categoryCreationFailMissingName() async throws {
         try await withApp(configure: configure) { app in
-            // Create a user
-            let userRequestBody = User(username: "testuser2", password: "password")
-            try await app.testing().test(.POST, "/api/register") { req in
-                try req.content.encode(userRequestBody)
-            } afterResponse: { res in
-                #expect(res.status == .ok)
-            }
+            let (token, userId) = try await registerAndLogin(in: app, username: "testuser2")
 
-            guard let createdUser = try await User.query(on: app.db)
-                .filter(\.$username == "testuser2")
-                .first(),
-                  let userId = createdUser.id else {
-                throw TestError.userCreationFailed
-            }
-
-            // Request body missing name
-            let requestBody = [
-                "colorCode": "#FFFFFF"
-            ]
-
+            let requestBody = ["colorCode": "#FFFFFF"]
             try await app.testing().test(.POST, "/api/\(userId.uuidString)/categories") { req in
+                req.headers.bearerAuthorization = BearerAuthorization(token: token)
                 try req.content.encode(requestBody)
             } afterResponse: { res in
                 #expect(res.status == .badRequest)
@@ -87,27 +51,11 @@ struct GrowBitAppServerSavingCategoryTests {
     @Test("Category creation - Fail - Missing colorCode")
     func categoryCreationFailMissingColorCode() async throws {
         try await withApp(configure: configure) { app in
-            // Create a user
-            let userRequestBody = User(username: "testuser3", password: "password")
-            try await app.testing().test(.POST, "/api/register") { req in
-                try req.content.encode(userRequestBody)
-            } afterResponse: { res in
-                #expect(res.status == .ok)
-            }
+            let (token, userId) = try await registerAndLogin(in: app, username: "testuser3")
 
-            guard let createdUser = try await User.query(on: app.db)
-                .filter(\.$username == "testuser3")
-                .first(),
-                  let userId = createdUser.id else {
-                throw TestError.userCreationFailed
-            }
-
-            // Request body missing colorCode
-            let requestBody = [
-                "name": "test category"
-            ]
-
+            let requestBody = ["name": "test category"]
             try await app.testing().test(.POST, "/api/\(userId.uuidString)/categories") { req in
+                req.headers.bearerAuthorization = BearerAuthorization(token: token)
                 try req.content.encode(requestBody)
             } afterResponse: { res in
                 #expect(res.status == .badRequest)
@@ -119,12 +67,11 @@ struct GrowBitAppServerSavingCategoryTests {
     @Test("Category creation - Fail - Invalid userId")
     func categoryCreationFailInvalidUserId() async throws {
         try await withApp(configure: configure) { app in
-            let requestBody = [
-                "name": "test category",
-                "colorCode": "#FFFFFF"
-            ]
+            let (token, _) = try await registerAndLogin(in: app, username: "testuser_invalidid")
 
+            let requestBody = ["name": "test category", "colorCode": "#FFFFFF"]
             try await app.testing().test(.POST, "/api/invalid-uuid/categories") { req in
+                req.headers.bearerAuthorization = BearerAuthorization(token: token)
                 try req.content.encode(requestBody)
             } afterResponse: { res in
                 #expect(res.status == .badRequest)
@@ -135,28 +82,11 @@ struct GrowBitAppServerSavingCategoryTests {
     @Test("Category creation - Fail - Empty name")
     func categoryCreationFailEmptyName() async throws {
         try await withApp(configure: configure) { app in
-            // Create a user
-            let userRequestBody = User(username: "testuser4", password: "password")
-            try await app.testing().test(.POST, "/api/register") { req in
-                try req.content.encode(userRequestBody)
-            } afterResponse: { res in
-                #expect(res.status == .ok)
-            }
+            let (token, userId) = try await registerAndLogin(in: app, username: "testuser4")
 
-            guard let createdUser = try await User.query(on: app.db)
-                .filter(\.$username == "testuser4")
-                .first(),
-                  let userId = createdUser.id else {
-                throw TestError.userCreationFailed
-            }
-
-            // Request body with empty name
-            let requestBody = [
-                "name": "",
-                "colorCode": "#FFFFFF"
-            ]
-
+            let requestBody = ["name": "", "colorCode": "#FFFFFF"]
             try await app.testing().test(.POST, "/api/\(userId.uuidString)/categories") { req in
+                req.headers.bearerAuthorization = BearerAuthorization(token: token)
                 try req.content.encode(requestBody)
             } afterResponse: { res in
                 #expect(res.status == .badRequest)
@@ -167,28 +97,11 @@ struct GrowBitAppServerSavingCategoryTests {
     @Test("Category creation - Fail - Invalid color code format")
     func categoryCreationFailInvalidColorCode() async throws {
         try await withApp(configure: configure) { app in
-            // Create a user
-            let userRequestBody = User(username: "testuser5", password: "password")
-            try await app.testing().test(.POST, "/api/register") { req in
-                try req.content.encode(userRequestBody)
-            } afterResponse: { res in
-                #expect(res.status == .ok)
-            }
+            let (token, userId) = try await registerAndLogin(in: app, username: "testuser5")
 
-            guard let createdUser = try await User.query(on: app.db)
-                .filter(\.$username == "testuser5")
-                .first(),
-                  let userId = createdUser.id else {
-                throw TestError.userCreationFailed
-            }
-
-            // Request body with invalid color code (missing #)
-            let requestBody = [
-                "name": "test category",
-                "colorCode": "FF$FF§FF"
-            ]
-
+            let requestBody = ["name": "test category", "colorCode": "FF$FF§FF"]
             try await app.testing().test(.POST, "/api/\(userId.uuidString)/categories") { req in
+                req.headers.bearerAuthorization = BearerAuthorization(token: token)
                 try req.content.encode(requestBody)
             } afterResponse: { res in
                 #expect(res.status == .badRequest)
@@ -199,31 +112,13 @@ struct GrowBitAppServerSavingCategoryTests {
     @Test("Category creation - Success - Valid color codes")
     func categoryCreationSuccessVariousColors() async throws {
         try await withApp(configure: configure) { app in
-            // Create a user
-            let userRequestBody = User(username: "testuser6", password: "password")
-            try await app.testing().test(.POST, "/api/register") { req in
-                try req.content.encode(userRequestBody)
-            } afterResponse: { res in
-                #expect(res.status == .ok)
-            }
+            let (token, userId) = try await registerAndLogin(in: app, username: "testuser6")
 
-            guard let createdUser = try await User.query(on: app.db)
-                .filter(\.$username == "testuser6")
-                .first(),
-                  let userId = createdUser.id else {
-                throw TestError.userCreationFailed
-            }
-
-            // Test various valid color codes with #
             let validColors = ["#000000", "#FFFFFF", "#FF0000", "#00FF00", "#0000FF", "#abcdef", "#123456"]
-
             for (index, color) in validColors.enumerated() {
-                let requestBody = [
-                    "name": "category \(index)",
-                    "colorCode": color
-                ]
-
+                let requestBody = ["name": "category \(index)", "colorCode": color]
                 try await app.testing().test(.POST, "/api/\(userId.uuidString)/categories") { req in
+                    req.headers.bearerAuthorization = BearerAuthorization(token: token)
                     try req.content.encode(requestBody)
                 } afterResponse: { res in
                     #expect(res.status == .ok)
@@ -234,25 +129,41 @@ struct GrowBitAppServerSavingCategoryTests {
         }
     }
 
+    @Test("Category creation - Fail - Cross-user access returns 403")
+    func categoryCreationCrossUserForbidden() async throws {
+        try await withApp(configure: configure) { app in
+            let (tokenA, _)  = try await registerAndLogin(in: app, username: "postxuser_a")
+            let (_, userBId) = try await registerAndLogin(in: app, username: "postxuser_b")
+
+            let requestBody = ["name": "test category", "colorCode": "#FFFFFF"]
+            try await app.testing().test(.POST, "/api/\(userBId.uuidString)/categories") { req in
+                req.headers.bearerAuthorization = BearerAuthorization(token: tokenA)
+                try req.content.encode(requestBody)
+            } afterResponse: { res in
+                #expect(res.status == .forbidden)
+            }
+        }
+    }
+
+    @Test("Category creation - Fail - No auth token")
+    func categoryCreationFailNoToken() async throws {
+        try await withApp(configure: configure) { app in
+            let (_, userId) = try await registerAndLogin(in: app, username: "noauthuser")
+            let requestBody = ["name": "test", "colorCode": "#FFFFFF"]
+            try await app.testing().test(.POST, "/api/\(userId.uuidString)/categories") { req in
+                try req.content.encode(requestBody)
+                // no Bearer token
+            } afterResponse: { res in
+                #expect(res.status == .unauthorized)
+            }
+        }
+    }
+
     @Test("Category creation - Success - Color normalization")
     func categoryCreationSuccessColorNormalization() async throws {
         try await withApp(configure: configure) { app in
-            // Create a user
-            let userRequestBody = User(username: "testuser7", password: "password")
-            try await app.testing().test(.POST, "/api/register") { req in
-                try req.content.encode(userRequestBody)
-            } afterResponse: { res in
-                #expect(res.status == .ok)
-            }
+            let (token, userId) = try await registerAndLogin(in: app, username: "testuser7")
 
-            guard let createdUser = try await User.query(on: app.db)
-                .filter(\.$username == "testuser7")
-                .first(),
-                  let userId = createdUser.id else {
-                throw TestError.userCreationFailed
-            }
-
-            // Test that colors without # are normalized to include #
             let testCases: [(input: String, expected: String)] = [
                 ("FF0000", "#FF0000"),
                 ("00FF00", "#00FF00"),
@@ -260,14 +171,10 @@ struct GrowBitAppServerSavingCategoryTests {
                 ("abcdef", "#ABCDEF"),
                 ("123456", "#123456")
             ]
-
             for (index, testCase) in testCases.enumerated() {
-                let requestBody = [
-                    "name": "normalized category \(index)",
-                    "colorCode": testCase.input
-                ]
-
+                let requestBody = ["name": "normalized category \(index)", "colorCode": testCase.input]
                 try await app.testing().test(.POST, "/api/\(userId.uuidString)/categories") { req in
+                    req.headers.bearerAuthorization = BearerAuthorization(token: token)
                     try req.content.encode(requestBody)
                 } afterResponse: { res in
                     #expect(res.status == .ok)
@@ -279,6 +186,3 @@ struct GrowBitAppServerSavingCategoryTests {
     }
 }
 
-enum TestError: Error {
-    case userCreationFailed
-}

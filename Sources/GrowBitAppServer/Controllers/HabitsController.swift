@@ -12,17 +12,18 @@ import GrowBitSharedDTO
 struct HabitsController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
         
-        // /api/:userId
+        // /api/:userId — JWT protected
         let api = routes.grouped("api", ":userId")
-        
+            .grouped(JWTAuthMiddleware())
+
         // POST: saving a habbit category
         // /api/:userId/categories
         api.post("categories", use: saveHabitCategory)
-        
+
         // GET: getting all categories for a user
         // /api/:userId/categories
         api.get("categories", use: getAllCategoriesForUser)
-        
+
         // DELETE: deleting a category
         // /api/:userId/categories/:categoryId
         api.delete("categories", ":categoryId", use: deleteCategory)
