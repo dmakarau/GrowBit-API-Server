@@ -61,51 +61,41 @@ struct GrowBitAppServerLoginTests {
             try await app.testing().test(.POST, "/api/login") { req in
                 try req.content.encode(loginCredentials)
             } afterResponse: { res in
-                #expect(res.status == .badRequest)
-                // Check that we get a meaningful error response (not empty)
+                #expect(res.status == .unauthorized)
                 #expect(!res.body.string.isEmpty)
-                #expect(res.body.string.contains("User not found"))
-
+                #expect(res.body.string.contains("Invalid credentials"))
             }
         }
     }
-    
+
     @Test("Test User Login Fail - Wrong password")
     func testUserLoginFailureWrongPassword() async throws {
         try await withApp(configure: configure) { app in
-            // Create user in this app instance
             try await createUser(in: app)
 
-            // Now test login with the same app instance
             let loginCredentials = User(username: "testuser", password: "wrongpassword")
             try await app.testing().test(.POST, "/api/login") { req in
                 try req.content.encode(loginCredentials)
             } afterResponse: { res in
                 #expect(res.status == .unauthorized)
-                // Check that we get a meaningful error response (not empty)
                 #expect(!res.body.string.isEmpty)
-                #expect(res.body.string.contains("Wrong password"))
-
+                #expect(res.body.string.contains("Invalid credentials"))
             }
         }
     }
-    
+
     @Test("Test User Login Fail - Wrong username and wrong password")
     func testUserLoginFailureWrongUsernameAndWrongPassword() async throws {
         try await withApp(configure: configure) { app in
-            // Create user in this app instance
             try await createUser(in: app)
 
-            // Now test login with the same app instance
             let loginCredentials = User(username: "wronguser", password: "wrongpassword")
             try await app.testing().test(.POST, "/api/login") { req in
                 try req.content.encode(loginCredentials)
             } afterResponse: { res in
-                #expect(res.status == .badRequest)
-                // Check that we get a meaningful error response (not empty)
+                #expect(res.status == .unauthorized)
                 #expect(!res.body.string.isEmpty)
-                #expect(res.body.string.contains("User not found"))
-
+                #expect(res.body.string.contains("Invalid credentials"))
             }
         }
     }

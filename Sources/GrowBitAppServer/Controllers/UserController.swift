@@ -26,12 +26,12 @@ struct UserController: RouteCollection {
         guard let existingUser = try await User.query(on: req.db)
             .filter(\.$username == user.username)
             .first() else {
-                throw Abort(.badRequest, reason: "User not found")
+                throw Abort(.unauthorized, reason: "Invalid credentials")
             }
 
         let passwordMatch = try await req.password.async.verify(user.password, created: existingUser.password)
         if !passwordMatch {
-            throw Abort(.unauthorized, reason: "Wrong password")
+            throw Abort(.unauthorized, reason: "Invalid credentials")
         }
 
         let userId = try existingUser.requireID()
