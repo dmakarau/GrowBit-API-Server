@@ -43,10 +43,11 @@ Routes are registered as `RouteCollection` objects in `configure.swift`:
 
 ### Auth
 - **Access token**: JWT (`AuthPayload` with `uid`, `exp`, `jti`), signed HMAC-SHA256, expires in 15 minutes; `jti` is a random UUID ensuring every token is unique
-- **Refresh token**: opaque UUID stored in `refresh_tokens` table, expires in 7 days
+- **Refresh token**: random UUID, stored as SHA-256 hash in `refresh_tokens` table, expires in 7 days; raw token returned to client once and never stored
 - Login returns `AuthResponseDTO` with both `token` and `refreshToken`
-- `POST /api/refresh` accepts `{ refreshToken }` in body, returns new access token
+- `POST /api/refresh` accepts `{ refreshToken }` in body, rotates the token (deletes old, issues new), returns new access token + new refresh token via `RefreshResponseDTO`
 - `POST /api/logout` accepts `{ refreshToken }` in body, deletes the DB row (idempotent)
+- On login, expired tokens for the user are pruned automatically
 - `JWTAuthMiddleware` verifies the Bearer token and checks `pathUserId == payload.userId` — prevents cross-user access
 
 ### Testing Pattern
