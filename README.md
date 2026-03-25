@@ -28,7 +28,7 @@ A Swift-based REST API server for habit tracking, built with the Vapor web frame
 #### Authentication
 - `POST /api/register` - Register a new user
 - `POST /api/login` - Returns access token (15 min) and refresh token (7 days)
-- `POST /api/refresh` - Issue new access token from a valid refresh token
+- `POST /api/refresh` - Issue new access and refresh tokens (rotates the refresh token)
 - `POST /api/logout` - Revoke refresh token
 
 #### Categories (JWT protected)
