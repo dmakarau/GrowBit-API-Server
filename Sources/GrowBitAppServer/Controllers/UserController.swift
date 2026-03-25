@@ -14,44 +14,94 @@ struct UserController: RouteCollection {
     func boot(routes: any Vapor.RoutesBuilder) throws {
         let api = routes.grouped("api")
 
-        // /api/register
         api.post("register", use: register)
-        
-        // /api/login
         api.post("login", use: login)
+        api.post("refresh", use: refresh)
+        api.post("logout", use: logout)
     }
-    
-    @Sendable func login(req: Request) async throws ->  LoginResponseDTO {
-        
-        // decode the request
+
+    @Sendable func login(req: Request) async throws -> AuthResponseDTO {
         let user = try req.content.decode(User.self)
-        
-        // check if the user is in DB
+
         guard let existingUser = try await User.query(on: req.db)
             .filter(\.$username == user.username)
             .first() else {
                 throw Abort(.badRequest, reason: "User not found")
             }
-        
-        // check the password
-        let result = try await req.password.async.verify(user.password, created: existingUser.password)
-        if !result {
+
+        let passwordMatch = try await req.password.async.verify(user.password, created: existingUser.password)
+        if !passwordMatch {
             throw Abort(.unauthorized, reason: "Wrong password")
         }
-        
-        // generate the token and return it to the user
-        let authPayload = try AuthPayload(
-            expiration: .init(value: .distantFuture),
-            userId: existingUser.requireID()
+
+        let userId = try existingUser.requireID()
+
+        let authPayload = AuthPayload(
+            expiration: .init(value: Date().addingTimeInterval(60 * 15)),
+            userId: userId
         )
-        return try await LoginResponseDTO(error: false, token: req.jwt.sign(authPayload), userId: existingUser.requireID())
+        let accessToken = try await req.jwt.sign(authPayload)
+
+        let refreshToken = RefreshToken(
+            userId: userId,
+            expiresAt: Date().addingTimeInterval(60 * 60 * 24 * 7)
+        )
+        try await refreshToken.save(on: req.db)
+
+        return AuthResponseDTO(
+            token: accessToken,
+            refreshToken: refreshToken.token,
+            userId: userId
+        )
+    }
+
+    @Sendable func refresh(req: Request) async throws -> RefreshResponseDTO {
+        struct RefreshRequest: Content {
+            let refreshToken: String
+        }
+        let body = try req.content.decode(RefreshRequest.self)
+
+        guard let storedToken = try await RefreshToken.query(on: req.db)
+            .filter(\.$token == body.refreshToken)
+            .with(\.$user)
+            .first()
+        else {
+            throw Abort(.unauthorized, reason: "Invalid refresh token")
+        }
+
+        guard storedToken.expiresAt > Date() else {
+            try await storedToken.delete(on: req.db)
+            throw Abort(.unauthorized, reason: "Refresh token has expired")
+        }
+
+        let authPayload = AuthPayload(
+            expiration: .init(value: Date().addingTimeInterval(60 * 15)),
+            userId: storedToken.$user.id
+        )
+        let accessToken = try await req.jwt.sign(authPayload)
+
+        return RefreshResponseDTO(token: accessToken)
+    }
+
+    @Sendable func logout(req: Request) async throws -> LogoutResponseDTO {
+        struct LogoutRequest: Content {
+            let refreshToken: String
+        }
+        let body = try req.content.decode(LogoutRequest.self)
+
+        if let storedToken = try await RefreshToken.query(on: req.db)
+            .filter(\.$token == body.refreshToken)
+            .first() {
+            try await storedToken.delete(on: req.db)
+        }
+
+        return LogoutResponseDTO(message: "Logged out successfully")
     }
 
     @Sendable func register(req: Request) async throws -> RegisterResponseDTO {
         do {
             try User.validate(content: req)
         } catch let error as ValidationsError {
-            // 422 Unprocessable Entity for validation failures
             throw Abort(.unprocessableEntity, reason: error.description)
         }
 
@@ -59,17 +109,12 @@ struct UserController: RouteCollection {
         if let _ = try await User.query(on: req.db)
             .filter(\.$username == user.username)
             .first() {
-            // 409 Conflict for username already taken
             throw Abort(.conflict, reason: "Username is already taken")
         }
-        
-        // hash the password
+
         user.password = try await req.password.async.hash(user.password)
-        
-        // save the user into the database
         try await user.save(on: req.db)
-        
-        // find if the user exists
+
         return RegisterResponseDTO(error: false)
     }
 }
