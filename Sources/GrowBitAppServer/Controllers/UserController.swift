@@ -37,14 +37,14 @@ struct UserController: RouteCollection {
         let userId = try existingUser.requireID()
 
         let authPayload = AuthPayload(
-            expiration: .init(value: Date().addingTimeInterval(60 * 15)),
+            expiration: .init(value: Date().addingTimeInterval(TokenExpiry.access)),
             userId: userId
         )
         let accessToken = try await req.jwt.sign(authPayload)
 
         let refreshToken = RefreshToken(
             userId: userId,
-            expiresAt: Date().addingTimeInterval(60 * 60 * 24 * 7)
+            expiresAt: Date().addingTimeInterval(TokenExpiry.refresh)
         )
         try await refreshToken.save(on: req.db)
 
@@ -56,14 +56,10 @@ struct UserController: RouteCollection {
     }
 
     @Sendable func refresh(req: Request) async throws -> RefreshResponseDTO {
-        struct RefreshRequest: Content {
-            let refreshToken: String
-        }
         let body = try req.content.decode(RefreshRequest.self)
 
         guard let storedToken = try await RefreshToken.query(on: req.db)
             .filter(\.$token == body.refreshToken)
-            .with(\.$user)
             .first()
         else {
             throw Abort(.unauthorized, reason: "Invalid refresh token")
@@ -75,7 +71,7 @@ struct UserController: RouteCollection {
         }
 
         let authPayload = AuthPayload(
-            expiration: .init(value: Date().addingTimeInterval(60 * 15)),
+            expiration: .init(value: Date().addingTimeInterval(TokenExpiry.access)),
             userId: storedToken.$user.id
         )
         let accessToken = try await req.jwt.sign(authPayload)
@@ -84,9 +80,6 @@ struct UserController: RouteCollection {
     }
 
     @Sendable func logout(req: Request) async throws -> LogoutResponseDTO {
-        struct LogoutRequest: Content {
-            let refreshToken: String
-        }
         let body = try req.content.decode(LogoutRequest.self)
 
         if let storedToken = try await RefreshToken.query(on: req.db)
@@ -117,4 +110,14 @@ struct UserController: RouteCollection {
 
         return RegisterResponseDTO(error: false)
     }
+}
+
+// MARK: - Request Bodies
+
+private struct RefreshRequest: Content {
+    let refreshToken: String
+}
+
+private struct LogoutRequest: Content {
+    let refreshToken: String
 }

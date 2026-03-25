@@ -149,6 +149,20 @@ struct GrowBitAppServerSavingCategoryTests {
         }
     }
 
+    @Test("Category creation - Fail - No auth token")
+    func categoryCreationFailNoToken() async throws {
+        try await withApp(configure: configure) { app in
+            let (_, userId) = try await registerAndLogin(in: app, username: "noauthuser")
+            let requestBody = ["name": "test", "colorCode": "#FFFFFF"]
+            try await app.testing().test(.POST, "/api/\(userId.uuidString)/categories") { req in
+                try req.content.encode(requestBody)
+                // no Bearer token
+            } afterResponse: { res in
+                #expect(res.status == .unauthorized)
+            }
+        }
+    }
+
     @Test("Category creation - Success - Color normalization")
     func categoryCreationSuccessColorNormalization() async throws {
         try await withApp(configure: configure) { app in
