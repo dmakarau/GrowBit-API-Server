@@ -42,7 +42,7 @@ Routes are registered as `RouteCollection` objects in `configure.swift`:
 - Migrations run automatically in test environment; must be registered manually in `configure.swift` when adding new models
 
 ### Auth
-- **Access token**: JWT (`AuthPayload` with `uid` + `exp`), signed HMAC-SHA256, expires in 15 minutes
+- **Access token**: JWT (`AuthPayload` with `uid`, `exp`, `jti`), signed HMAC-SHA256, expires in 15 minutes; `jti` is a random UUID ensuring every token is unique
 - **Refresh token**: opaque UUID stored in `refresh_tokens` table, expires in 7 days
 - Login returns `AuthResponseDTO` with both `token` and `refreshToken`
 - `POST /api/refresh` accepts `{ refreshToken }` in body, returns new access token
@@ -50,4 +50,4 @@ Routes are registered as `RouteCollection` objects in `configure.swift`:
 - `JWTAuthMiddleware` verifies the Bearer token and checks `pathUserId == payload.userId` — prevents cross-user access
 
 ### Testing Pattern
-All tests use Vapor's `withApp` helper + Apple's `@Suite`/`@Test` macros. Each test creates its own in-memory DB state — no shared fixtures. Category tests use a `registerAndLogin` helper to obtain a Bearer token for `Authorization` headers.
+All tests use Vapor's `withApp` helper + Apple's `@Suite`/`@Test` macros. Each test creates its own in-memory DB state — no shared fixtures. Shared test utilities live in `Tests/GrowBitAppServerTests/TestHelpers.swift` — `registerAndLogin(in:username:)` and `TestError`.
