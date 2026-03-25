@@ -10,6 +10,7 @@ import Foundation
 import GrowBitSharedDTO
 import VaporTesting
 import Testing
+import Fluent
 
 @Suite("App Login Tests")
 struct GrowBitAppServerLoginTests {
@@ -27,20 +28,24 @@ struct GrowBitAppServerLoginTests {
     @Test("Test User Login Success")
     func testUserLoginSuccess() async throws {
         try await withApp(configure: configure) { app in
-            // Create user in this app instance
             try await createUser(in: app)
 
-            // Now test login with the same app instance
+            guard let createdUser = try await User.query(on: app.db)
+                .filter(\.$username == "testuser")
+                .first(),
+                  let expectedUserId = createdUser.id else {
+                throw TestError.userCreationFailed
+            }
+
             let loginCredentials = User(username: "testuser", password: "password")
             try await app.testing().test(.POST, "/api/login") { req in
                 try req.content.encode(loginCredentials)
             } afterResponse: { res in
                 #expect(res.status == .ok)
-
                 let response = try res.content.decode(AuthResponseDTO.self)
                 #expect(!response.token.isEmpty)
                 #expect(!response.refreshToken.isEmpty)
-                #expect(response.userId != UUID())
+                #expect(response.userId == expectedUserId)
             }
         }
     }
